@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>万兽之王 · 鸟巢 — King of Beasts Live</title>
+<meta name="description" content="薛之谦「万兽之王」鸟巢演唱会 — 实时三维灯光秀。Play mode autoplays a directed show; Explore mode gives full manual camera control while the show keeps running.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;500;700;800&family=JetBrains+Mono:wght@400;600&family=Noto+Sans+SC:wght@300;500;900&display=swap">
+<link rel="stylesheet" href="css/show.css?v=12.1">
+
+<!--
+  ════════════════════════════════════════════════════════════════════════
+  SHOW PARAMETERS
+  Edit the defaults here, or override any of them per-visit with the URL:
+     index.html?mode=free&quality=ultra&t=95
+  or on the <script src="js/kob-main.js"> tag below with data-* attributes.
+  Precedence: URL query  >  data-* on the main script  >  KOB_CONFIG below.
+  ════════════════════════════════════════════════════════════════════════
+    mode       'play' | 'free'        start in the directed show or in free camera
+    t          seconds                show time to start from (0 – 135)
+    chapter    1 – 10                 start at a chapter (overrides t)
+    speed      0.25 – 2               show clock multiplier
+    loop       true | false           loop the show (false: stop at the end)
+    quality    'auto'|'low'|'medium'|'high'|'ultra'   auto = detect the GPU, calibrate at boot, adapt live
+    scale      0.4 – 2                render scale override (fraction of device pixels)
+    fps        0 | 30 | 60 …          frame-rate cap (0 = display refresh). 30 is steadier on weak GPUs
+    audio      true | false           try to start sound immediately (browsers need a click)
+    volume     0 – 1
+    ui         true | false           show interface
+    letterbox  true | false           cinematic bars in play mode
+    idle       seconds                free-mode inactivity before the show resumes (0 = never, the default)
+    ev         stops                  exposure compensation (-3 … +3)
+    bloom      0 – 3                  bloom strength multiplier
+    flare      0 – 3                  lens flare / streak multiplier
+    grain      0 – 3                  film grain multiplier
+    haze       0 – 3                  atmosphere density multiplier
+    dof        true | false           depth of field
+    mblur      true | false           motion blur
+    shake      0 – 3                  camera handheld / impact shake multiplier
+    fireworks  0 – 2                  fireworks density multiplier
+    crowd      0 – 2                  light-stick density multiplier
+    drones     0 – 2                  drone count multiplier
+    view       0 – 15                 free-mode viewpoint to open on
+    seed       integer                random seed for crowd / pyro variation
+    stats      true | false           frame-rate readout
+    cdn        'auto'|'jsdelivr'|'unpkg'|'npmmirror'
+    capture    true | false           frame-capture mode (no animation loop; drive with __viewer.renderAt)
+    gate       true | false           entry screen with ENTER / Enter silently (sound needs a click anyway)
+    titles     true | false           opening and closing title cards in show mode
+    autohide   seconds                show mode: fade the interface after this much stillness (0 = never)
+    sign       text                   words on the giant light sign, the wall ticker, banner towers, fan screen
+    signColor  gold|red|white|cyan|magenta|jade|violet or #rrggbb
+    signStyle  neon | bulbs | led     signAnim  steady | chase | pulse | rainbow     ticker  true | false
+    drone      text                   words for the custom drone fleet (droneShape=text)
+    droneShape text|crown|heart|eye|claws|sphere|rings    droneColor  as signColor
+    droneFx    steady | wave | sparkle | rainbow           droneSpot  behind | lake | crown
+-->
+<script>
+// the build: every script checks in with it, so a stale cached file is caught and reloaded
+window.KOB_BUILD = '12';
+window.KOB_CONFIG = {
+  mode: 'play', t: 0, chapter: null, speed: 1, loop: true,
+  quality: 'auto', scale: null,
+  audio: false, volume: 0.8,
+  ui: true, letterbox: true, idle: 0,
+  ev: 0, bloom: 1, flare: 1, grain: 1, haze: 1, dof: true, mblur: true, shake: 1,
+  fireworks: 1, crowd: 1, drones: 1,
+  view: null, seed: 7, stats: false, cdn: 'auto', capture: false, fps: 0,
+  gate: true, titles: true, autohide: 3.5,
+  // light signs + drone show (leave null to keep what the viewer saved last time)
+  sign: null, signColor: null, signStyle: null, signAnim: null, ticker: null,
+  drone: null, droneShape: null, droneColor: null, droneFx: null, droneSpot: null
+};
+</script>
+</head>
+<body class="is-booting mode-play">
+
+<canvas id="gl"></canvas>
+
+<!-- cinematic bars (show mode); the top band and the dock live inside them -->
+<div id="bars" aria-hidden="true"><i></i><i></i></div>
+
+<!-- ── boot + entry gate ─────────────────────────────────────────────── -->
+<section id="boot">
+  <div class="boot__inner">
+    <svg class="boot__crown" viewBox="0 0 64 40" aria-hidden="true"><path d="M6 34V12l13 11L32 4l13 19 13-11v22z"/><path d="M6 30h52"/></svg>
+    <div class="boot__artist">薛之谦 <span>XUE ZHIQIAN</span></div>
+    <h1 class="boot__title">万兽之王</h1>
+    <div class="boot__sub">KING OF BEASTS · LIVE AT THE BIRD'S NEST</div>
+    <div class="boot__load">
+      <div class="boot__bar"><i id="bootBar"></i></div>
+      <div class="boot__msg" id="bootMsg">Preparing the venue…</div>
+    </div>
+    <div class="boot__enter" id="bootEnter">
+      <button type="button" class="btn-enter" id="btnEnter">
+        <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none"/></svg>
+        <span><b>进入演出</b><small>ENTER WITH SOUND</small></span>
+      </button>
+      <button type="button" class="btn-silent" id="btnSilent">静音进入 · Enter silently</button>
+      <p class="boot__hint">Headphones recommended · <kbd>Space</kbd> switches between Show and Explore</p>
+    </div>
+    <div class="boot__err" id="bootErr">
+      <h2>无法启动 · Could not start</h2>
+      <p id="bootErrText"></p>
+      <p>three.js is loaded from a public CDN (jsDelivr / unpkg / npmmirror). Check the network or proxy, then reload.</p>
+      <button type="button" onclick="location.reload()">Reload</button>
+    </div>
+  </div>
+</section>
+
+<!-- ── opening / closing title cards (show mode) ──────────────────────── -->
+<div id="card" class="ui-card" aria-hidden="true">
+  <div class="card__open">
+    <div class="card__pre">薛之谦 <span>XUE ZHIQIAN</span> · WORLD TOUR</div>
+    <div class="card__title">万兽之王</div>
+    <div class="card__post">KING OF BEASTS <i></i> 北京 · 国家体育场 BIRD'S NEST</div>
+  </div>
+  <div class="card__close">
+    <div class="card__title card__title--sm">感谢北京</div>
+    <div class="card__post">THANK YOU, BEIJING <i></i> SEE YOU AT THE NEXT ROAR</div>
+  </div>
+</div>
+
+<!-- ── top: wordmark · tools ─────────────────────────────────────────── -->
+<header id="top" class="ui chrome">
+  <div class="brand">
+    <span class="brand__title">万兽之王</span>
+    <span class="brand__live"><i></i><span id="clock">00:00</span><em id="liveCh">01 · OUTSIDE</em></span>
+  </div>
+  <nav class="tools">
+    <button type="button" id="btnSound" class="tool tool--sound" title="Sound (M)" aria-label="Sound">
+      <svg viewBox="0 0 24 24"><path class="spk" d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5H4z"/><path class="on" d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/><path class="off" d="M16 10l4 4M20 10l-4 4"/></svg>
+      <span class="sr" id="soundLbl">SOUND OFF</span>
+    </button>
+    <div class="settings">
+      <button type="button" id="btnSettings" class="tool" title="Picture quality" aria-label="Picture quality" aria-haspopup="true">
+        <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      </button>
+      <div class="menu" id="menu" role="menu">
+        <div class="menu__h">画质 · Quality <b id="qualityLbl">AUTO</b></div>
+        <button type="button" data-q="auto" role="menuitemradio">Auto<small>adapts to this GPU</small></button>
+        <button type="button" data-q="low" role="menuitemradio">Low</button>
+        <button type="button" data-q="medium" role="menuitemradio">Medium</button>
+        <button type="button" data-q="high" role="menuitemradio">High</button>
+        <button type="button" data-q="ultra" role="menuitemradio">Ultra</button>
+        <div class="menu__build" id="buildStamp"></div>
+      </div>
+    </div>
+    <button type="button" id="btnFull" class="tool" title="Fullscreen (F)" aria-label="Fullscreen">
+      <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    </button>
+    <button type="button" id="btnHide" class="tool" title="Hide interface (H)" aria-label="Hide interface">
+      <svg viewBox="0 0 24 24"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg>
+    </button>
+  </nav>
+</header>
+
+<!-- shown only while the interface is hidden: one faint eye to bring it back -->
+<button type="button" id="reveal" title="Show interface (H)" aria-label="Show interface">
+  <svg viewBox="0 0 24 24"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg>
+</button>
+
+<!-- ── chapter lower-third (show mode) ──────────────────────────────── -->
+<div id="lower" class="ui">
+  <div class="lower__idx"><span id="chIdx">01</span> / <span id="chTot">10</span></div>
+  <div class="lower__name" id="chName">OUTSIDE</div>
+  <div class="lower__cn" id="chCn">序幕 · 巢外</div>
+</div>
+
+<!-- ── control deck (left): cameras · effects · signs · drones ────────── -->
+<aside id="deck" class="ui">
+  <nav class="rail" role="tablist" aria-label="Control deck">
+    <button type="button" data-tab="views" title="机位 · Cameras"><svg viewBox="0 0 24 24"><path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.6-2h7.4l1.6 2h2.2A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg><span>机位</span></button>
+    <button type="button" data-tab="fx" title="特效 · Effects"><svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.9 2.9M15.5 15.5l2.9 2.9M5.6 18.4l2.9-2.9M15.5 8.5l2.9-2.9"/></svg><span>特效</span></button>
+    <button type="button" data-tab="signs" title="灯牌 · Light signs"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="10" rx="1.5"/><path d="M7 16v4M17 16v4M7 9.5h2M11 9.5h2M15 9.5h2M7 12.5h2M11 12.5h2M15 12.5h2"/></svg><span>灯牌</span></button>
+    <button type="button" data-tab="drones" title="无人机 · Drone show"><svg viewBox="0 0 24 24"><circle cx="5.5" cy="6" r="2.5"/><circle cx="18.5" cy="6" r="2.5"/><circle cx="5.5" cy="18" r="2.5"/><circle cx="18.5" cy="18" r="2.5"/><path d="M8 8l2.5 2.5M16 8l-2.5 2.5M8 16l2.5-2.5M16 16l-2.5-2.5"/><rect x="10" y="10" width="4" height="4" rx="1"/></svg><span>无人机</span></button>
+  </nav>
+  <div class="sheet" id="sheet">
+    <section class="tab" data-tab="views">
+      <header><h3>机位 <span>Cameras</span></h3><button type="button" class="close" aria-label="Close">×</button></header>
+      <div id="viewList" class="views"></div>
+      <p class="keys">拖动旋转 · 滚轮缩放 · WASD 飞行 · 数字键切换机位 · Space 回到演出</p>
+    </section>
+    <section class="tab" data-tab="fx">
+      <header><h3>特效 <span>Effects</span></h3><button type="button" class="close" aria-label="Close">×</button></header>
+      <button type="button" class="tourbtn" id="btnTour"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z"/></svg><span><b>特效巡礼</b><small>Tour all 20 set pieces · 约 3 分钟</small></span></button>
+      <h4 class="fxh"><span>经典</span><small>Classics</small></h4>
+      <div class="fx" id="fxDesk">
+    <button type="button" data-fx="fireworks" title="Fireworks 烟花"><svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.9 2.9M15.5 15.5l2.9 2.9M5.6 18.4l2.9-2.9M15.5 8.5l2.9-2.9"/></svg><small>烟花</small></button>
+    <button type="button" data-fx="flames" title="Flames 火焰"><svg viewBox="0 0 24 24"><path d="M12 21c-4 0-6-2.6-6-6 0-4 4-6 4-11 3 2 7 6 7 11 0 3.4-1.6 6-5 6z"/></svg><small>火焰</small></button>
+    <button type="button" data-fx="lasers" title="Lasers 激光"><svg viewBox="0 0 24 24"><path d="M3 20L21 6M3 20L21 12M3 20L21 18M3 20l13-17"/></svg><small>激光</small></button>
+    <button type="button" data-fx="strobe" title="Blinders 频闪"><svg viewBox="0 0 24 24"><path d="M13 2L5 14h6l-1 8 8-12h-6z"/></svg><small>频闪</small></button>
+    <button type="button" data-fx="co2" title="CO₂ jets 冷焰"><svg viewBox="0 0 24 24"><path d="M8 21V11M16 21V11M8 11c-2-3-1-6 1-8M16 11c2-3 1-6-1-8M12 21V8"/></svg><small>冷焰</small></button>
+    <button type="button" data-fx="confetti" title="Confetti 彩带"><svg viewBox="0 0 24 24"><path d="M5 5l2 3M12 3v3M19 5l-2 3M7 13l-2 2M17 13l2 2M10 18l-1 3M14 18l1 3M12 10l1 2"/></svg><small>彩带</small></button>
+    <button type="button" data-fx="waterfall" title="Spark fall 瀑布"><svg viewBox="0 0 24 24"><path d="M3 4h18M6 4v14M10 4v10M14 4v16M18 4v12"/></svg><small>瀑布</small></button>
+    <button type="button" data-fx="surge" title="Crowd surge 人海"><svg viewBox="0 0 24 24"><path d="M2 16c2.5-4 5-4 7.5 0s5 4 7.5 0 3.5-3 5-1.5M2 10c2.5-4 5-4 7.5 0s5 4 7.5 0 3.5-3 5-1.5"/></svg><small>人海</small></button>
+  </div>
+      <div id="fxMore"></div>
+      <p class="hint">随时触发，演出与自由模式均可；亮点表示正在上演。看台字幕显示第一块灯牌的文字，飞艇横幅显示跑马灯文字。Fire any time, in either mode — a lit dot means it is running now.</p>
+    </section>
+    <section class="tab" data-tab="signs">
+      <header><h3>灯牌 <span>Light signs</span></h3><button type="button" class="close" aria-label="Close">×</button></header>
+      <div class="map"><canvas class="minimap" data-kind="sign"></canvas><p>点击地图放置 · 拖动标记移动</p></div>
+      <div class="items" id="signItems"></div>
+      <div class="editor" id="signEditor">
+        <label class="field"><span>文字 · Text</span><input id="signText" maxlength="14" autocomplete="off" spellcheck="false" placeholder="输入灯牌文字"><button type="button" class="apply" id="signApply">点亮</button></label>
+        <div class="chips" data-target="signText"><button type="button">万兽之王</button><button type="button">薛之谦</button><button type="button">鸟巢见</button><button type="button">我们都爱你</button><button type="button">KING OF BEASTS</button></div>
+        <div class="row"><span>颜色 · Colour</span><div class="swatches" data-group="sign"></div></div>
+        <div class="row"><span>样式 · Style</span><div class="seg" data-key="signStyle"><button type="button" data-v="0">霓虹</button><button type="button" data-v="1">灯泡</button><button type="button" data-v="2">像素</button></div></div>
+        <div class="row"><span>动态 · Motion</span><div class="seg" data-key="signAnim"><button type="button" data-v="0">常亮</button><button type="button" data-v="1">追光</button><button type="button" data-v="2">呼吸</button><button type="button" data-v="3">彩虹</button></div></div>
+        <label class="slider"><span>字高 · Letter height</span><input type="range" min="4" max="24" step="0.5" data-key="height"><b></b></label>
+        <label class="slider"><span>离地 · Elevation</span><input type="range" min="0.7" max="60" step="0.5" data-key="lift"><b></b></label>
+        <label class="slider"><span>朝向 · Facing</span><input type="range" min="0" max="359" step="1" data-key="angle"><b></b></label>
+        <div class="actions"><button type="button" data-act="face">朝向镜头</button><button type="button" data-act="watch">飞过去看</button><button type="button" data-act="remove" class="danger">删除</button></div>
+      </div>
+      <div class="block">
+        <div class="block__h"><label class="sw"><input type="checkbox" data-key="ticker"><i></i></label>外墙跑马灯 <small>Wall ticker</small></div>
+        <label class="field field--slim"><input id="tickText" maxlength="24" autocomplete="off" spellcheck="false" placeholder="跑马灯文字"><button type="button" class="apply" id="tickApply">更新</button></label>
+        <div class="toggles"><label><input type="checkbox" data-key="banners"><i></i>广场灯柱同步 <small>Banner towers</small></label><label><input type="checkbox" data-key="screen"><i></i>场外大屏同步 <small>Fan screen</small></label></div>
+      </div>
+    </section>
+    <section class="tab" data-tab="drones">
+      <header><h3>无人机 <span>Drone show</span></h3><button type="button" class="close" aria-label="Close">×</button></header>
+      <div class="map"><canvas class="minimap" data-kind="fleet"></canvas><p>点击地图调度所选编队 · 拖动标记移动</p></div>
+      <div class="items" id="fleetItems"></div>
+      <div class="editor" id="fleetEditor">
+        <div class="toggles only-venue"><label><input type="checkbox" data-key="follow"><i></i>跟随演出编排 <small>Follow the show</small></label></div>
+        <div class="row"><span>图案 · Formation</span></div>
+        <div class="chips chips--shape" data-key="droneShape"><button type="button" data-v="text">文字</button><button type="button" data-v="crown">皇冠</button><button type="button" data-v="heart">爱心</button><button type="button" data-v="star">星星</button><button type="button" data-v="note">音符</button><button type="button" data-v="eagle">雄鹰</button><button type="button" data-v="lion">雄狮</button><button type="button" data-v="elephant">巨象</button><button type="button" data-v="whale">鲸</button><button type="button" data-v="eye">兽瞳</button><button type="button" data-v="claws">兽爪</button><button type="button" data-v="sphere">星球</button><button type="button" data-v="rings">光环</button></div>
+        <label class="field" id="droneTextField"><span>文字 · Text</span><input id="droneText" maxlength="14" autocomplete="off" spellcheck="false" placeholder="输入编队文字"><button type="button" class="apply" id="droneApply">起飞</button></label>
+        <div class="row"><span>颜色 · Colour</span><div class="swatches" data-group="drone"></div></div>
+        <div class="row"><span>灯效 · Lights</span></div>
+        <div class="seg seg--fx" data-key="droneFx"><button type="button" data-v="0">常亮</button><button type="button" data-v="1">波浪</button><button type="button" data-v="2">闪烁</button><button type="button" data-v="3">彩虹</button><button type="button" data-v="4">绽放</button></div>
+        <label class="slider only-fleet"><span>高度 · Altitude</span><input type="range" min="40" max="260" step="1" data-key="alt"><b></b></label>
+        <label class="slider only-fleet"><span>规模 · Size</span><input type="range" min="30" max="150" step="1" data-key="size"><b></b></label>
+        <label class="slider only-fleet"><span>朝向 · Facing</span><input type="range" min="0" max="359" step="1" data-key="angle"><b></b></label>
+        <div class="actions"><button type="button" data-act="face" class="only-fleet">朝向镜头</button><button type="button" data-act="watch">观看编队</button><button type="button" data-act="remove" class="danger only-fleet">解散</button></div>
+      </div>
+    </section>
+  </div>
+</aside>
+
+<!-- ── bottom row ───────────────────────────────────────────────────── -->
+<footer id="dock" class="ui chrome">
+  <div class="modes" role="tablist" aria-label="Mode">
+    <button type="button" class="mode mode--play" data-mode="play" role="tab">演出 <span>Show</span></button>
+    <button type="button" class="mode mode--free" data-mode="free" role="tab">自由 <span>Explore</span></button>
+  </div>
+
+  <div class="timeline" id="timeline">
+    <button type="button" class="tl__pp" id="btnPause" title="Pause / play (K)" aria-label="Pause">
+      <svg viewBox="0 0 24 24"><path class="i-pause" d="M8 6h2.6v12H8zM13.4 6H16v12h-2.6z"/><path class="i-play" d="M8 5.5l10 6.5-10 6.5z"/></svg>
+    </button>
+    <div class="tl__track" id="tlTrack">
+      <div class="tl__chapters" id="tlChapters"></div>
+      <div class="tl__rail"><div class="tl__fill" id="tlFill"></div></div>
+      <div class="tl__head" id="tlHead"></div>
+      <div class="tl__tip" id="tlTip"><b></b><span></span></div>
+    </div>
+    <div class="tl__time" id="tlTime"><b>00:00</b> / 02:15</div>
+  </div>
+
+  <div class="explore" id="explore">
+    <div class="explore__now"><i></i><span id="exNow">01 · Outside</span><em id="exView">Free camera</em></div>
+    <button type="button" class="resume" id="btnResume">
+      <svg class="resume__ring" viewBox="0 0 44 44"><circle cx="22" cy="22" r="19"/><circle id="idleRing" cx="22" cy="22" r="19"/></svg>
+      <svg class="resume__ico" viewBox="0 0 24 24"><path d="M9 6.5l9 5.5-9 5.5z"/></svg>
+      <span>回到演出 <b>Back to the show</b><small id="resumeHint">Space</small></span>
+    </button>
+  </div>
+</footer>
+
+<div id="toast" class="ui"></div>
+<div id="tourCap" class="ui" aria-live="polite">
+  <div class="tc__top"><span id="tcIdx">01 / 20</span><span id="tcWhere">场内 · In the bowl</span></div>
+  <div class="tc__name"><b id="tcCn">光环</b><span id="tcEn">Halo hoops</span></div>
+  <p id="tcDesc"></p>
+  <div class="tc__bar"><i id="tcFill"></i></div>
+  <div class="tc__btns"><button type="button" id="tcSkip">下一个 · Next ›</button><button type="button" id="tcStop">结束 · Stop</button></div>
+</div>
+<div id="stats"></div>
+
+<script src="js/kob-params.js?v=12.1"></script>
+<script src="js/kob-glsl.js?v=12.1"></script>
+<script src="js/kob-show.js?v=12.1"></script>
+<script src="js/kob-fx.js?v=12.1"></script>
+<script src="js/kob-sfx.js?v=12.1"></script>
+<script src="js/kob-world.js?v=12.1"></script>
+<script src="js/kob-post.js?v=12.1"></script>
+<script src="js/kob-ui.js?v=12.1"></script>
+<script src="js/kob-deck.js?v=12.1"></script>
+<script src="js/audio.js?v=12.1"></script>
+<script src="js/kob-main.js?v=12.1" id="kob-main"></script>
+</body>
+</html>
