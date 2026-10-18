@@ -59,6 +59,13 @@
   <sub>谢幕全景 · 感谢北京 / The closing wide shot</sub>
 </p>
 
+### Blender 建模 / Blender Modeling
+
+<p align="center">
+  <a href="screenshot/blender.png"><img src="screenshot/blender.png" alt="Blender 中的鸟巢场馆与舞台模型" width="100%"></a><br>
+  <sub>场馆与舞台模型 · Blender 视口 / Venue and stage model in Blender</sub>
+</p>
+
 ---
 
 ## 项目说明
